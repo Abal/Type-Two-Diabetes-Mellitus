@@ -1,3 +1,9 @@
+----------------------------------------------
+Title: "Type 2 Diabetes Mellitus Prediction"
+Author: "Alex Abal"
+Date: 10th February 2024
+--------------------------------------------
+
 #install.packages('scales')
 # libraries used
 #library(scales)
@@ -34,7 +40,6 @@ df <- data[sample(nrow(data)), ]
 head(df)
 # display 
 print(df) 
-
 
 # Code for checking for null value
 sum(is.na(df))
@@ -122,7 +127,6 @@ Dout <- subset(df5,
                select = c(age,glucose,
                           systolic,weight,
                           diastolic,bmi,insulin))
-
 # Code for boxplot
 ggplot(data = melt(Dout), 
        aes(x=variable, y=value)) + 
@@ -145,7 +149,6 @@ M <- data_new
 # Default Heatmap
 corrplot(cor(M), method="shade", main = "Heat Map",sub = "sub", 
          type = "full", shade.col=NA, tl.col="black", tl.srt=45)
-
 
 #Data preparation
 cutoff <- caret::createDataPartition(df5$diabetes_mellitus, times = 1, p=0.80, list=FALSE)
@@ -184,7 +187,6 @@ model_svm <- caret::train(diabetes_mellitus ~.,
                           preProcess = c("center","scale"))
 model_svm
 
-
 #Code Let’s plot the accuracy graph.
 plot((model_svm),main="ROC for Support Vector Model during Training")
 
@@ -217,7 +219,6 @@ plot(roc_svm,
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Support Vector Model ROC Curve with AUC Value")
 
-
 #Random Forest Model
 set.seed(223)
 control <- trainControl(method="cv",number=10,  summaryFunction = twoClassSummary, classProbs = TRUE)
@@ -235,7 +236,6 @@ model_rfm
 model_rfm$results["ROC"]
 # Plotting model
 plot(model_rfm, main="ROC for Random Forest Model during Training")
-
 
 #Prediction/ validating the Random Forest model using the test dataset
 predict_rfm <- predict(model_rfm, newdata = testdf)
@@ -263,7 +263,6 @@ plot(roc_rfm,
      col='pink',
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Random Forest ROC Curve with AUC Value")
-
 
 # XGBOOST - eXtreme Gradient BOOSTing 
 xgb_grid  <-  expand.grid(
@@ -320,7 +319,6 @@ plot(roc_xgb,
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Extreme Gradient Boosting ROC Curve with AUC Value")
 
-
 ##CODE FOR KNN, the tuneLength parameter tells the algorithm to try different default values for the main parameter
 # The tuneGrid parameter lets us decide which values the main parameter will take
 # While tuneLength only limit the number of default parameters to use.
@@ -367,8 +365,6 @@ plot(roc_knn,
      col='orange',
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "K-Nearest Neigbor ROC Curve with AUC Value")
-
-
 
 # Decision Tree Model
 set.seed(223)
@@ -440,7 +436,6 @@ model_list <- list(Support_Vector = model_svm,
                    Rpart_DT = model_dtm)
 
 resamples <- resamples(model_list)
-
 #### Compare models and summarize/visualize results
 if(length(model_list)> 1){
   resamp = resamples(model_list)
@@ -479,11 +474,9 @@ result_svm <- c(cm_svm$byClass['Sensitivity'], cm_svm$byClass['Specificity'], cm
 result_dtm <- c(cm_dtm$byClass['Sensitivity'], cm_dtm$byClass['Specificity'], cm_dtm$byClass['Precision'], 
                   cm_dtm$byClass['Recall'], cm_dtm$byClass['F1'], roc_dtm$auc)
 
-
 all_results <- data.frame(rbind(result_rfm, result_xgb, result_knn, result_svm, result_dtm))
 names(all_results) <- c("Sensitivity", "Specificity", "Precision", "Recall", "F1", "AUC")
 all_results
-
 
 #Visualization to compare accuracy of models using Four Fold Plot of the developed Models 
 col <- c("#91CBD765", "#CA225E")
@@ -504,3 +497,7 @@ graphics::fourfoldplot(cm_knn$table, color = col, conf.level = 0.95, margin = 1,
 
 graphics::fourfoldplot(cm_dtm$table, color = col, conf.level = 0.95, margin = 1, 
                        main = paste("Decission Tree Accuracy(",round(cm_dtm$overall[1]*100),"%)", sep = ""))
+
+## Conclusion
+The results can be improved further by using prospective data, feature engineering. The models predicted type 2 diabetes, commonly called as diabetes mellitus.
+This could be used as a screening tool inorder to improve their health conditions.
