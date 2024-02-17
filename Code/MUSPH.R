@@ -1,12 +1,9 @@
-----------------------------------------------
-Title: "Type 2 Diabetes Mellitus Prediction"
-Author: "Alex Abal"
-Date: 10th February 2024
---------------------------------------------
+#----------------------------------------------#
+#Title:    "Type 2 Diabetes Mellitus Prediction"
+#Author:   "Alex Abal"
+#Date:      17th February 2024
+#--------------------------------------------#
 
-#install.packages('scales')
-# libraries used
-#library(scales)
 library(ROSE)
 library(xgboost)
 library(reshape)
@@ -15,12 +12,10 @@ library(visdat)
 library(kernlab)
 library(caret) #ML Model buidling package
 library(tidyverse) #ggplot and dplyr
-library(MASS) #Modern Applied Statistics with S
 library(mlbench) #data sets from the UCI repository.
 library(summarytools)
 library(corrplot) #Correlation plot
 library(gridExtra) #Multiple plot in single grip space
-library(timeDate) 
 library(pROC) #ROC
 library(caTools) #AUC
 library(rpart.plot) #CART Decision Tree
@@ -29,136 +24,134 @@ library(graphics) #fourfoldplot
 library(naniar)# for missing values
 library(mice)# for Imputation using mice
 library(dplyr)# For Glimpse
-#library(DMwR) it has failed to load for SMOTE 
+library(Boruta)
+library(rattle)
+library(gtsummary)
 
-# Code for loading the dataset
+# Loading the dataset
 data <- read.csv("Dataset/trial.csv")
-sapply(data, class)
-head(data)
 
 df <- data[sample(nrow(data)), ]
-head(df)
-# display 
-print(df) 
 
 # Code for checking for null value
 sum(is.na(df))
 
 #Plot of missing values
 vis_miss(df) 
-vis_miss(df, facet = Diabetes.Mellitus) 
 
-library(ggplot2)
-gg_miss_var(df, show_pct = TRUE) + ylim(0, 50)+ 
-  labs(y ="All Missing values in Percentages")
 
-#cleaning the dataset, 
+#Cleaning the dataset 
 df1 <- clean_names(df)
-df1
-#encoding the target variable as a factor
+
+#Encoding the target variable as a factor
 df1$diabetes_mellitus = factor(df1$diabetes_mellitus, 
                                levels = c(0,1),
                                labels = c("Negative", "Positive"))
 
-#encoding sex variable
+#Encoding sex variable
 df1$sex = factor(df1$sex, 
                  levels = c(0,1),
                  labels = c("Male", "Female"))
 
-#encoding Physical activity variable
+#Encoding Physical activity variable
 df1$physical_activity = factor(df1$physical_activity, 
                                levels = c(0,1),
                                labels = c("Not active", "Active"))
 
-#encoding Smoking status variable
+#Encoding Smoking status variable
 df1$smoking_status = factor(df1$smoking_status, 
                             levels = c(0,1),
                             labels = c("non smoker", "smoker"))
 
-#encoding Alcohol status variable
+#Encoding Alcohol status variable
 df1$alcohol_status = factor(df1$alcohol_status, 
                             levels = c(0,1),
                             labels = c("Non user", "user"))
 
-#encoding Hypertension variable
+#Encoding Hypertension variable
 df1$hypertension = factor(df1$hypertension, 
                           levels = c(0,1),
                           labels = c("Not sick", "Sick"))
 
-#Mice package for imputing the missing values
+#Describing the Statistics of the dataset
+demo_stat <- df1
+
+data_set_Stat <- demo_stat %>% dplyr::select(age, sex, bmi, weight, insulin, glucose,
+                                  systolic, diastolic, alcohol_status, 
+                                  smoking_status, physical_activity,
+                                  hypertension, diabetes_mellitus)
+
+tbl_summary(data_set_Stat, 
+            by =  diabetes_mellitus,
+            statistic = list(
+              all_continuous() ~ "{mean} ({sd})"),
+            missing = "no") %>%
+  as_gt(include = -cols_align) %>%
+  gt::tab_source_note(gt::md("*This data is Demographic Statitistics of Dataset*"))
+
+#data_set_Stat %>% tbl_summary()
+
+#Imputation of missing values using the Mice package.
 data_imp = mice(df1,
                 m=5, 
                 method =c('pmm','','pmm',
                           'pmm','pmm','pmm','pmm',
                           'pmm','','','','',''), maxit = 50)
-head(data_imp)
+#Getting plot of Imputed values
 plot(data_imp)
 
-data_imp$imp$bmi # to compare the output
-final_data = complete(data_imp, 3)# selection of Final dataset to be used
-glimpse(final_data)
+#Checking the data fit to see if the imputed values are a good fit to the data
+stripplot(data_imp, pch = 20, cex = 1.2)
+
+#Comparing the output
+data_imp$imp$weight 
+
+#Selection of final dataset to be used
+final_data = complete(data_imp, 3)
 df3 <- final_data
-is.na(df3)#checking for missing values if still do exit in the final dataset
 
-#Let’s start with oversampling and balance the data. Developing a balanced dataset using oversampling
+#Checking for missing values if still do exit in the final dataset
+is.na(df3)
 
+#Developing a balanced dataset using oversampling technique
 data_df3 <- ovun.sample(diabetes_mellitus ~ ., data = df3, 
                                   method = "both", p=0.5,
                                   N=1920, seed = 1)$data
 df4 <- data_df3
 
-#checking to see if my data is normalized, if normalized SD= 1 , mean = 0
+#Checking to see if my data is normalized, if normalized SD= 1 , mean = 0
 sd(df4$bmi)
 
-## Normalising the dataset so that the mean is Zero and SD = 1
-
+#Normalizing the dataset so that the mean is Zero and SD = 1
 process <- preProcess(as.data.frame(df4), method=c("range"))
 norm_scale <- predict(process, as.data.frame(df4))
 df5 <- norm_scale
 
-#calculate mean of scaled variable
+#Calculating mean of scaled variables
 sd(df5$bmi)
 
 #Data Exploration Process starts here
-#Distribution of Diabetes Mellitus in Training Dataset
 
-#To select only numerical features from our dataset to plot boxplot.
-Dout <- subset(df5, 
-               select = c(age,glucose,
-                          systolic,weight,
-                          diastolic,bmi,insulin))
-# Code for boxplot
-ggplot(data = melt(Dout), 
-       aes(x=variable, y=value)) + 
-  geom_boxplot(aes(fill=variable))
-
-#Table of summary statistics generated by Different variables
-table1::table1(~age + sex + glucose + bmi + systolic + weight + diastolic 
-               + physical_activity + smoking_status + alcohol_status
-               +  hypertension | diabetes_mellitus,
-               data = df5, 
-               na.rm = TRUE,
-               digits = 1, 
-               format.number = TRUE)
 
 # Convert categorical variables
 data_new <- sapply(df5, unclass)          
-data_new 
 M <- data_new
 
 # Default Heatmap
-corrplot(cor(M), method="shade", main = "Heat Map",sub = "sub", 
-         type = "full", shade.col=NA, tl.col="black", tl.srt=45)
+corrplot(cor(M), method="shade", main = "Heat Map Showing Relationships between Variables",
+         sub = "sub", type = "full", shade.col=TRUE, tl.col="darkblue", tl.srt=45)
+
 
 #Data preparation
 cutoff <- caret::createDataPartition(df5$diabetes_mellitus, times = 1, p=0.80, list=FALSE)
-# 30% of the data will be used for validation
+
+# 20% of the data used for validation
 testdf <- df5[-cutoff,]
-# 70% of data will be used for model training
+
+# 80% of data used for model training
 traindf <- df5[cutoff,]
 
 #Identifying variable of importance
-library(Boruta)
 boruta_output <- Boruta(diabetes_mellitus~., data=traindf, doTrace=0)
 rough_fix_mod <- TentativeRoughFix(boruta_output)
 boruta_signif <- getSelectedAttributes(rough_fix_mod)
@@ -166,14 +159,42 @@ importances <- attStats(rough_fix_mod)
 importances <- importances[importances$decision !="Rejected", c("meanImp", "decision")]
 importances[order(-importances$meanImp), ]
 
-attStats(boruta_output)# look at the attribute statistics
+# look at the attribute statistics
+attStats(boruta_output)
 
 plot(boruta_output, las =2, cex.axis=0.7, xlab="",
      main= "Important variables used development of Prediction models")
 
-# Code to train the SVM, I set the 10 fold cross validation 
-set.seed(223)
 
+#Diabetes Distribution
+ggplot(traindf, aes(traindf$diabetes_mellitus, fill = diabetes_mellitus)) + 
+  geom_bar() +
+  theme_bw() +
+  labs(title = "Diabetes Mellitus Classification", x = "Diabetes Mellitus") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+#Univariate Analysis
+
+
+
+#Bivariate analysis
+
+
+
+
+# Outlier Detection, the Caret function will handle outliers
+boxplot(df5,
+        main = "Identification of Outliers",
+        xlab = "Variables",
+        ylab = "Percentiles",
+        col = "pink",
+        border = "brown",
+        horizontal = F,
+        notch = F
+)
+
+# Training the SVM, I set the 10 fold cross validation 
+set.seed(223)
 control <- trainControl(method="cv",number=10,  summaryFunction = twoClassSummary, classProbs = TRUE)
 metric <- "ROC"
 model_svm <- caret::train(diabetes_mellitus ~., 
@@ -182,10 +203,10 @@ model_svm <- caret::train(diabetes_mellitus ~.,
                           method = "svmRadial",
                           metric = metric,
                           tuneLength = 8,
-                          
                           trControl =control,
                           preProcess = c("center","scale"))
 model_svm
+
 
 #Code Let’s plot the accuracy graph.
 plot((model_svm),main="ROC for Support Vector Model during Training")
@@ -208,8 +229,6 @@ roc_svm <- roc(testdf$diabetes_mellitus, pred_prob_svm$Positive)
 roc_svm
 
 # Plot the ROC curve with AUC value
-#plot(roc_svm, print.auc = TRUE, auc.polygon = TRUE, 
-     #legacy.axes = TRUE, main = "Support Vector Model ROC Curve with AUC Value")
 plot(roc_svm, 
      colorize=TRUE,
      avg='horizontal',
@@ -219,12 +238,12 @@ plot(roc_svm,
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Support Vector Model ROC Curve with AUC Value")
 
+
 #Random Forest Model
 set.seed(223)
 control <- trainControl(method="cv",number=10,  summaryFunction = twoClassSummary, classProbs = TRUE)
 metric <- "ROC"
 model_rfm<- caret::train(diabetes_mellitus ~., 
-                
                         data = traindf,
                         method = "ranger",
                         metric = metric,
@@ -234,6 +253,7 @@ model_rfm
 
 #Final ROC value
 model_rfm$results["ROC"]
+
 # Plotting model
 plot(model_rfm, main="ROC for Random Forest Model during Training")
 
@@ -252,19 +272,17 @@ roc_rfm <- roc(testdf$diabetes_mellitus, pred_prob_rfm$Positive)
 roc_rfm
 
 # Plot the ROC curve with AUC value
-#plot(roc_rfm, print.auc = TRUE, auc.polygon = TRUE, 
-     #legacy.axes = TRUE, main = "Random Forest ROC Curve with AUC Value")
-
 plot(roc_rfm, 
      colorize=TRUE,
      avg='horizontal',
      spread.estimate='boxplot',
-     lwd=3,
-     col='pink',
+     lwd=4,
+     col='darkblue',
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Random Forest ROC Curve with AUC Value")
 
-# XGBOOST - eXtreme Gradient BOOSTing 
+
+# EXtreme Gradient Boosting 
 xgb_grid  <-  expand.grid(
   nrounds = 150,
   eta = c(0.03),
@@ -307,9 +325,6 @@ roc_xgb <- roc(testdf$diabetes_mellitus, pred_prob_xgb$Positive)
 roc_xgb
 
 # Plot the ROC curve with AUC value
-#plot(roc_xgb, print.auc = TRUE, auc.polygon = TRUE, 
-     #legacy.axes = TRUE, main = "Extreme Gradient Boosting ROC Curve with AUC Value")
-
 plot(roc_xgb, 
      colorize=TRUE,
      avg='horizontal',
@@ -319,9 +334,8 @@ plot(roc_xgb,
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Extreme Gradient Boosting ROC Curve with AUC Value")
 
-##CODE FOR KNN, the tuneLength parameter tells the algorithm to try different default values for the main parameter
-# The tuneGrid parameter lets us decide which values the main parameter will take
-# While tuneLength only limit the number of default parameters to use.
+
+#K Nearest Neighbor Code
 
 set.seed(223)
 control <- trainControl(method="cv", number=10,  summaryFunction = twoClassSummary, classProbs = TRUE)
@@ -354,9 +368,6 @@ roc_knn <- roc(testdf$diabetes_mellitus, pred_prob_knn$Positive)
 roc_knn
 
 # Plot the ROC curve with AUC value
-#plot(roc_knn, print.auc = TRUE, auc.polygon = TRUE, 
-     #legacy.axes = TRUE, main = "K-Nearest Neighbor ROC Curve with AUC Value")
-
 plot(roc_knn, 
      colorize=TRUE,
      avg='horizontal',
@@ -365,6 +376,7 @@ plot(roc_knn,
      col='orange',
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "K-Nearest Neigbor ROC Curve with AUC Value")
+
 
 # Decision Tree Model
 set.seed(223)
@@ -387,20 +399,27 @@ plot((model_dtm), main="ROC for Decision Tree Model during Training")
 model_dtm$results["ROC"] 
 
 #Best Model Cp (Complexity Parameter)
-model_dtm$bestTune
+best <- model_dtm$bestTune
 
 #Structure of final model selected
-model_dtm$finalModel
+best2 <- model_dtm$finalModel
 
 #Plot of DTM 
-rpart.plot::rpart.plot(model_dtm$finalModel, type =2, fallen.leaves = T, 
-                       extra = 2, 
-                       faclen=1,
-                       under = TRUE,
+#rpart.plot::rpart.plot(best, extra= 106)
+
+
+# Visualize the decision tree with rpart.plot
+rpart.plot::rpart.plot(best2, type =2, fallen.leaves = F, 
+                       extra = 101, 
+                       faclen=5,
+                       under =F,
                        roundint=F, #don't round to integers in output
                        digits=1, #display 5 decimal places in output
-                       cex = 0.80,
+                       cex = 0.12,
                        box.palette = "auto")
+
+##prp(model_dtm$finalModel)
+#fancyRpartPlot(model_dtm$finalModel, cex = 0.12)
 
 #Validating the Decision Tree model using the test dataset
 predict_dtm <- predict(model_dtm, newdata = testdf)
@@ -417,7 +436,6 @@ roc_dtm <- roc(testdf$diabetes_mellitus, pred_prob_dtm$Positive)
 roc_dtm
 
 # Plot the ROC curve with AUC value
-
 plot(roc_dtm, 
      colorize=TRUE,
      avg='horizontal',
@@ -433,9 +451,10 @@ model_list <- list(Support_Vector = model_svm,
                    Random_Forest = model_rfm,
                    XGBoost = model_xgb, 
                    KNN = model_knn, 
-                   Rpart_DT = model_dtm)
+                   Decision_Tree = model_dtm)
 
 resamples <- resamples(model_list)
+
 #### Compare models and summarize/visualize results
 if(length(model_list)> 1){
   resamp = resamples(model_list)
@@ -449,9 +468,9 @@ if(length(model_list)> 1){
 xyplot(resamp, metric="ROC" )
 
 #box plot
-##bwplot(resamples, 
-      # main="Comparison of ROC values of models with the Training Data set", 
-       #metric="ROC")
+bwplot(resamples, 
+       main="Comparison of ROC values of models with the Training Data set", 
+       metric="ROC")
 
 #dot plot
 #dotplot(resamples, metric="ROC")
@@ -474,12 +493,14 @@ result_svm <- c(cm_svm$byClass['Sensitivity'], cm_svm$byClass['Specificity'], cm
 result_dtm <- c(cm_dtm$byClass['Sensitivity'], cm_dtm$byClass['Specificity'], cm_dtm$byClass['Precision'], 
                   cm_dtm$byClass['Recall'], cm_dtm$byClass['F1'], roc_dtm$auc)
 
+
 all_results <- data.frame(rbind(result_rfm, result_xgb, result_knn, result_svm, result_dtm))
 names(all_results) <- c("Sensitivity", "Specificity", "Precision", "Recall", "F1", "AUC")
 all_results
 
+
 #Visualization to compare accuracy of models using Four Fold Plot of the developed Models 
-col <- c("#91CBD765", "#CA225E")
+col <- c("darkgreen", "#CA225E")
 
 graphics::fourfoldplot(cm_svm$table, color = col, conf.level = 0.95, margin = 1, 
                        main = paste("Support Vector Machine(",round(cm_svm$overall[1]*100),"%)", sep = ""))
@@ -497,7 +518,3 @@ graphics::fourfoldplot(cm_knn$table, color = col, conf.level = 0.95, margin = 1,
 
 graphics::fourfoldplot(cm_dtm$table, color = col, conf.level = 0.95, margin = 1, 
                        main = paste("Decission Tree Accuracy(",round(cm_dtm$overall[1]*100),"%)", sep = ""))
-
-## Conclusion
-The results can be improved further by using prospective data, feature engineering. The models predicted type 2 diabetes, commonly called as diabetes mellitus.
-This could be used as a screening tool inorder to improve their health conditions.
