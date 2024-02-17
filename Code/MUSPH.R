@@ -173,15 +173,6 @@ ggplot(traindf, aes(traindf$diabetes_mellitus, fill = diabetes_mellitus)) +
   labs(title = "Diabetes Mellitus Classification", x = "Diabetes Mellitus") +
   theme(plot.title = element_text(hjust = 0.5))
 
-#Univariate Analysis
-
-
-
-#Bivariate analysis
-
-
-
-
 # Outlier Detection, the Caret function will handle outliers
 boxplot(df5,
         main = "Identification of Outliers",
@@ -206,7 +197,6 @@ model_svm <- caret::train(diabetes_mellitus ~.,
                           trControl =control,
                           preProcess = c("center","scale"))
 model_svm
-
 
 #Code Let’s plot the accuracy graph.
 plot((model_svm),main="ROC for Support Vector Model during Training")
@@ -237,7 +227,6 @@ plot(roc_svm,
      col='purple',
      print.auc = TRUE, auc.polygon = TRUE, 
      legacy.axes = TRUE, main = "Support Vector Model ROC Curve with AUC Value")
-
 
 #Random Forest Model
 set.seed(223)
@@ -472,10 +461,6 @@ bwplot(resamples,
        main="Comparison of ROC values of models with the Training Data set", 
        metric="ROC")
 
-#dot plot
-#dotplot(resamples, metric="ROC")
-
-
 # Comparision of test results using Test Set
 
 result_rfm <- c(cm_rfm$byClass['Sensitivity'], cm_rfm$byClass['Specificity'], cm_rfm$byClass['Precision'], 
@@ -493,6 +478,7 @@ result_svm <- c(cm_svm$byClass['Sensitivity'], cm_svm$byClass['Specificity'], cm
 result_dtm <- c(cm_dtm$byClass['Sensitivity'], cm_dtm$byClass['Specificity'], cm_dtm$byClass['Precision'], 
                   cm_dtm$byClass['Recall'], cm_dtm$byClass['F1'], roc_dtm$auc)
 
+write.csv(all_results,"testresults.csv")
 
 all_results <- data.frame(rbind(result_rfm, result_xgb, result_knn, result_svm, result_dtm))
 names(all_results) <- c("Sensitivity", "Specificity", "Precision", "Recall", "F1", "AUC")
